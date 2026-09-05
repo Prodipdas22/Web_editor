@@ -30,6 +30,8 @@
       <div class="top-actions">
         <span id="saveStatus" class="save-status">● Saved</span>
         <button id="saveBtn" class="btn">Save</button>
+        <button id="exportBtn" class="btn">Export</button>
+        <button id="importBtn" class="btn">Import</button>
         <button id="downloadBtn" class="btn">HTML</button>
         <button id="pdfBtn" class="btn primary">Report / PDF</button>
         <button id="themeBtn" class="icon-btn" title="Toggle theme">☾</button>
@@ -97,6 +99,8 @@
                 <button class="tab" data-lang="js">JavaScript</button>
               </div>
               <div class="panel-tools">
+                <button id="findBtn" class="mini-btn">Find</button>
+                <button id="wrapBtn" class="mini-btn">Wrap</button>
                 <button id="copyCodeBtn" class="mini-btn">Copy</button>
                 <button id="formatBtn" class="mini-btn">Format</button>
               </div>
@@ -109,6 +113,7 @@
 
             <div class="editor-footer">
               <span id="languageLabel">HTML</span>
+              <span id="cursorInfo">Ln 1, Col 1</span>
               <span>Ctrl/Cmd + Enter = Run</span>
             </div>
           </section>
@@ -183,6 +188,12 @@
   <div id="reportPrintArea"></div>
 
   <input id="projectImport" type="file" accept=".json" hidden>
+  <div id="findBar" class="find-bar hidden">
+    <input id="findInput" type="search" placeholder="Find in current code...">
+    <button id="findPrevBtn" class="mini-btn">↑</button>
+    <button id="findNextBtn" class="mini-btn">↓</button>
+    <button id="closeFindBtn" class="mini-btn">×</button>
+  </div>
 
   <script src="script.js"></script>
 </body>

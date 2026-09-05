@@ -88,3 +88,16 @@ button{cursor:pointer}
   .workbench{padding:0 8px 8px}.console-panel{margin:0 8px 8px}.panel-tools #formatBtn{display:none}.preview-stage{padding:8px}
   .modal-topbar{padding:8px}.modal-topbar .btn{padding:7px}.a4-page{scale:.52;margin-bottom:-140mm}
 }
+
+/* ===== Sprint 3 additions ===== */
+.find-bar{position:fixed;right:18px;top:76px;z-index:30;display:flex;gap:5px;align-items:center;padding:7px;background:var(--surface);border:1px solid var(--border);border-radius:9px;box-shadow:var(--shadow)}
+.find-bar.hidden{display:none}.find-bar input{width:230px;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:7px;padding:7px 9px;font-size:11px;outline:0}
+.find-bar input:focus{border-color:var(--accent)}
+#codeEditor.wrap-on{white-space:pre-wrap;overflow-wrap:anywhere}
+.editor-wrap{position:relative}
+.line-numbers{flex:0 0 42px}
+#codeEditor{min-width:0}
+@media(max-width:650px){
+  .top-actions #exportBtn,.top-actions #importBtn{display:none}
+  .find-bar{left:8px;right:8px;top:68px}.find-bar input{flex:1;width:auto}
+}

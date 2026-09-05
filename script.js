@@ -475,11 +475,119 @@ function closeMobileSidebar() {
   $("sidebar").classList.remove("open");
 }
 
+
+function exportProject() {
+  saveState();
+  const payload = {
+    app: "Index Editor V2",
+    version: "Sprint 3",
+    exportedAt: new Date().toISOString(),
+    experiments: state.experiments
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "index-editor-project.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importProjectFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const experiments = Array.isArray(data) ? data : data.experiments;
+      if (!Array.isArray(experiments) || !experiments.length) throw new Error("No experiments found");
+
+      const cleaned = experiments.map((e, i) => ({
+        id: e.id || uid(),
+        number: String(e.number ?? String(i + 1).padStart(2, "0")),
+        title: String(e.title ?? `Experiment ${i + 1}`),
+        objective: String(e.objective ?? ""),
+        result: String(e.result ?? ""),
+        code: {
+          html: String(e.code?.html ?? ""),
+          css: String(e.code?.css ?? ""),
+          js: String(e.code?.js ?? "")
+        }
+      }));
+
+      state.experiments = cleaned;
+      state.activeId = cleaned[0].id;
+      saveState();
+      renderAll();
+      alert(`Imported ${cleaned.length} experiment${cleaned.length === 1 ? "" : "s"} successfully.`);
+    } catch (err) {
+      alert("Invalid project JSON: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function updateCursorInfo() {
+  const area = $("codeEditor");
+  const pos = area.selectionStart;
+  const before = area.value.slice(0, pos);
+  const line = before.split("\n").length;
+  const lastBreak = before.lastIndexOf("\n");
+  const col = pos - lastBreak;
+  $("cursorInfo").textContent = `Ln ${line}, Col ${col}`;
+}
+
+function openFindBar() {
+  $("findBar").classList.remove("hidden");
+  $("findInput").focus();
+}
+
+function closeFindBar() {
+  $("findBar").classList.add("hidden");
+}
+
+function findText(direction = 1) {
+  const area = $("codeEditor");
+  const query = $("findInput").value;
+  if (!query) return;
+
+  const text = area.value.toLowerCase();
+  const q = query.toLowerCase();
+  let start = direction > 0 ? area.selectionEnd : area.selectionStart - 1;
+  let index = direction > 0 ? text.indexOf(q, start) : text.lastIndexOf(q, start);
+
+  if (index === -1) {
+    index = direction > 0 ? text.indexOf(q) : text.lastIndexOf(q);
+  }
+  if (index >= 0) {
+    area.focus();
+    area.setSelectionRange(index, index + query.length);
+    updateCursorInfo();
+  }
+}
+
+function handleEditorShortcuts(e) {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === "f") {
+    e.preventDefault();
+    openFindBar();
+  }
+  if (mod && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    saveState();
+  }
+}
+
 function bindEvents() {
   $("addExperimentBtn").onclick = addExperiment;
   $("duplicateBtn").onclick = duplicateExperiment;
   $("deleteBtn").onclick = deleteExperiment;
   $("saveBtn").onclick = saveState;
+  $("exportBtn").onclick = exportProject;
+  $("importBtn").onclick = () => $("projectImport").click();
+  $("projectImport").onchange = e => {
+    importProjectFile(e.target.files[0]);
+    e.target.value = "";
+  };
   $("downloadBtn").onclick = downloadCurrentHTML;
   $("pdfBtn").onclick = openReport;
   $("closeReportBtn").onclick = closeReport;
@@ -491,6 +599,15 @@ function bindEvents() {
   $("fullscreenBtn").onclick = fullscreenPreview;
   $("copyCodeBtn").onclick = copyCurrentCode;
   $("formatBtn").onclick = formatCode;
+  $("findBtn").onclick = openFindBar;
+  $("wrapBtn").onclick = () => $("codeEditor").classList.toggle("wrap-on");
+  $("closeFindBtn").onclick = closeFindBar;
+  $("findNextBtn").onclick = () => findText(1);
+  $("findPrevBtn").onclick = () => findText(-1);
+  $("findInput").onkeydown = e => {
+    if (e.key === "Enter") findText(e.shiftKey ? -1 : 1);
+    if (e.key === "Escape") closeFindBar();
+  };
   $("clearConsoleBtn").onclick = clearConsole;
   $("previewDesktopBtn").onclick = () => {state.previewMode="desktop";renderPreview()};
   $("previewMobileBtn").onclick = () => {state.previewMode="mobile";renderPreview()};
@@ -498,6 +615,10 @@ function bindEvents() {
 
   $("codeEditor").oninput = e => updateCode(e.target.value);
   $("codeEditor").onscroll = updateLineNumbers;
+  $("codeEditor").onkeyup = updateCursorInfo;
+  $("codeEditor").onclick = updateCursorInfo;
+  $("codeEditor").onselect = updateCursorInfo;
+  $("codeEditor").addEventListener("keydown", handleEditorShortcuts);
   $("codeEditor").onkeydown = e => {
     if (e.key === "Tab") {
       e.preventDefault();
