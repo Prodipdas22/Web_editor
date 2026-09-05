@@ -1,120 +1,189 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Index Editor V2 — College Lab Builder</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Index Editor V2 — College Lab Assignment Builder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    @media print {
+      body > *:not(#reportPrintArea) { display:none !important; }
+      #reportPrintArea { display:block !important; position:static !important; }
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <button class="icon-btn mobile-only" id="menuBtn" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
-    <div class="brand"><span class="brand-mark">&lt;/&gt;</span><span>Index Editor</span><small>V2</small></div>
-    <div class="project-name">
-      <span id="saveStatus" class="status-dot"></span>
-      <span id="currentProjectName">My Lab Record</span>
-    </div>
-    <div class="top-actions">
-      <button class="tool-btn" id="saveBtn" title="Save"><i class="fa-solid fa-floppy-disk"></i><span>Save</span></button>
-      <button class="tool-btn" id="downloadBtn" title="Download HTML"><i class="fa-solid fa-download"></i><span>HTML</span></button>
-      <button class="tool-btn primary" id="pdfBtn" title="Generate PDF"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></button>
-      <button class="icon-btn" id="themeBtn" title="Toggle theme"><i class="fa-solid fa-sun"></i></button>
-    </div>
-  </header>
-
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-head">
-        <div><strong>Experiments</strong><span id="experimentCount">1</span></div>
-        <button class="icon-btn" id="addExperimentBtn" title="Add experiment"><i class="fa-solid fa-plus"></i></button>
-      </div>
-      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input id="experimentSearch" placeholder="Search experiments"></div>
-      <div class="experiment-list" id="experimentList"></div>
-      <div class="sidebar-bottom">
-        <button class="side-action" id="duplicateBtn"><i class="fa-regular fa-copy"></i> Duplicate</button>
-        <button class="side-action danger-text" id="deleteBtn"><i class="fa-regular fa-trash-can"></i> Delete</button>
-      </div>
-    </aside>
-
-    <main class="main-area">
-      <section class="details-panel panel">
-        <div class="section-heading">
-          <div><span class="eyebrow">LAB EXPERIMENT</span><h1>Experiment Details</h1></div>
-          <span class="autosave-label">Autosave enabled</span>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">&lt;/&gt;</div>
+        <div>
+          <strong>Index Editor <span>V2</span></strong>
+          <small>College Lab Assignment Builder</small>
         </div>
-        <div class="details-grid">
-          <label>Experiment No.<input id="expNumber" type="number" min="1" placeholder="01"></label>
-          <label>Experiment Title<input id="expTitle" placeholder="Create a HTML document"></label>
-          <label class="wide">Objective<textarea id="expObjective" rows="2" placeholder="To create a basic HTML document using HTML elements."></textarea></label>
-          <label class="wide">Result<textarea id="expResult" rows="2" placeholder="The experiment was completed successfully."></textarea></label>
+      </div>
+
+      <div class="top-actions">
+        <span id="saveStatus" class="save-status">● Saved</span>
+        <button id="saveBtn" class="btn">Save</button>
+        <button id="downloadBtn" class="btn">HTML</button>
+        <button id="pdfBtn" class="btn primary">Report / PDF</button>
+        <button id="themeBtn" class="icon-btn" title="Toggle theme">☾</button>
+      </div>
+    </header>
+
+    <main class="main-layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-head">
+          <div>
+            <h2>Experiments</h2>
+            <small id="experimentCount">1 experiment</small>
+          </div>
+          <button id="addExperimentBtn" class="square-btn" title="Add experiment">+</button>
         </div>
-      </section>
 
-      <section class="workbench">
-        <section class="editor-panel panel">
-          <div class="panel-toolbar">
-            <div class="tabs">
-              <button class="tab active" data-lang="html"><span class="lang-dot html"></span>HTML</button>
-              <button class="tab" data-lang="css"><span class="lang-dot css"></span>CSS</button>
-              <button class="tab" data-lang="js"><span class="lang-dot js"></span>JavaScript</button>
-            </div>
-            <div class="editor-tools">
-              <button class="mini-btn" id="runBtn"><i class="fa-solid fa-play"></i> Run</button>
-              <button class="mini-btn" id="copyBtn"><i class="fa-regular fa-copy"></i></button>
-              <button class="mini-btn" id="clearCodeBtn" title="Clear current file"><i class="fa-solid fa-eraser"></i></button>
-            </div>
-          </div>
-          <div class="editor-wrap">
-            <div class="line-numbers" id="lineNumbers"></div>
-            <textarea id="codeEditor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-          </div>
-          <div class="editor-status"><span id="languageStatus">HTML</span><span id="charStatus">0 chars</span></div>
-        </section>
+        <div class="search-wrap">
+          <input id="experimentSearch" type="search" placeholder="Search experiments...">
+        </div>
 
-        <section class="preview-panel panel">
-          <div class="panel-toolbar">
-            <div class="panel-title"><i class="fa-regular fa-window-maximize"></i> Live Preview</div>
-            <div class="preview-tools">
-              <button class="mini-btn active" data-preview="desktop"><i class="fa-solid fa-desktop"></i></button>
-              <button class="mini-btn" data-preview="mobile"><i class="fa-solid fa-mobile-screen"></i></button>
-              <button class="mini-btn" id="fullscreenBtn"><i class="fa-solid fa-expand"></i></button>
+        <div id="experimentList" class="experiment-list"></div>
+
+        <div class="sidebar-bottom">
+          <button id="duplicateBtn" class="btn full">Duplicate</button>
+          <button id="deleteBtn" class="btn danger full">Delete</button>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <div class="experiment-bar">
+          <div class="details">
+            <div class="field compact">
+              <label>Experiment No.</label>
+              <input id="expNumber" type="text" placeholder="01">
+            </div>
+            <div class="field title-field">
+              <label>Experiment Title</label>
+              <input id="expTitle" type="text" placeholder="Enter experiment title">
             </div>
           </div>
-          <div class="preview-stage">
-            <div class="browser-window" id="browserWindow">
-              <div class="browser-bar">
-                <div class="traffic"><i></i><i></i><i></i></div>
-                <div class="browser-address"><i class="fa-solid fa-lock"></i> localhost / preview</div>
-                <button id="refreshBtn" class="browser-refresh"><i class="fa-solid fa-rotate-right"></i></button>
+          <div class="workspace-actions">
+            <button id="previewDesktopBtn" class="btn active">Desktop</button>
+            <button id="previewMobileBtn" class="btn">Mobile</button>
+            <button id="runBtn" class="btn primary">▶ Run</button>
+          </div>
+        </div>
+
+        <div class="meta-grid">
+          <div class="field">
+            <label>Objective</label>
+            <textarea id="expObjective" rows="3" placeholder="Write the objective of this experiment..."></textarea>
+          </div>
+          <div class="field">
+            <label>Result</label>
+            <textarea id="expResult" rows="3" placeholder="Write the result / conclusion of this experiment..."></textarea>
+          </div>
+        </div>
+
+        <div class="workbench">
+          <section class="panel editor-panel">
+            <div class="panel-head">
+              <div class="tabs">
+                <button class="tab active" data-lang="html">HTML</button>
+                <button class="tab" data-lang="css">CSS</button>
+                <button class="tab" data-lang="js">JavaScript</button>
               </div>
-              <iframe id="previewFrame" sandbox="allow-scripts allow-modals allow-forms"></iframe>
+              <div class="panel-tools">
+                <button id="copyCodeBtn" class="mini-btn">Copy</button>
+                <button id="formatBtn" class="mini-btn">Format</button>
+              </div>
             </div>
+
+            <div class="editor-wrap">
+              <div id="lineNumbers" class="line-numbers">1</div>
+              <textarea id="codeEditor" spellcheck="false" autocomplete="off"></textarea>
+            </div>
+
+            <div class="editor-footer">
+              <span id="languageLabel">HTML</span>
+              <span>Ctrl/Cmd + Enter = Run</span>
+            </div>
+          </section>
+
+          <section class="panel preview-panel">
+            <div class="panel-head">
+              <div>
+                <strong>Live Preview</strong>
+                <small>Rendered experiment output</small>
+              </div>
+              <div class="panel-tools">
+                <button id="refreshPreviewBtn" class="mini-btn">↻ Refresh</button>
+                <button id="fullscreenBtn" class="mini-btn">⛶</button>
+              </div>
+            </div>
+
+            <div id="previewStage" class="preview-stage desktop-preview">
+              <div class="browser-window">
+                <div class="browser-bar">
+                  <div class="traffic"><i></i><i></i><i></i></div>
+                  <div class="address">index-editor://preview</div>
+                  <div></div>
+                </div>
+                <iframe id="previewFrame" title="Live preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"></iframe>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel console-panel">
+          <div class="panel-head">
+            <div>
+              <strong>Console</strong>
+              <small id="consoleStatus">Ready</small>
+            </div>
+            <button id="clearConsoleBtn" class="mini-btn">Clear</button>
+          </div>
+          <div id="consoleOutput" class="console-output">
+            <div class="console-line muted">Console ready.</div>
           </div>
         </section>
-      </section>
-
-      <section class="console-panel panel">
-        <div class="panel-toolbar">
-          <div class="panel-title"><i class="fa-solid fa-terminal"></i> Console</div>
-          <button class="mini-btn" id="clearConsoleBtn">Clear</button>
-        </div>
-        <div id="consoleOutput" class="console-output"><div class="console-empty">Run your code to see console messages here.</div></div>
       </section>
     </main>
+
+    <nav class="mobile-nav">
+      <button data-mobile="files">☰<span>Files</span></button>
+      <button data-mobile="code" class="active">⌨<span>Code</span></button>
+      <button data-mobile="preview">▣<span>Preview</span></button>
+      <button data-mobile="console">▤<span>Console</span></button>
+    </nav>
   </div>
 
-  <nav class="mobile-nav">
-    <button data-mobile-view="files"><i class="fa-regular fa-folder"></i><span>Files</span></button>
-    <button class="active" data-mobile-view="code"><i class="fa-solid fa-code"></i><span>Code</span></button>
-    <button data-mobile-view="preview"><i class="fa-regular fa-eye"></i><span>Preview</span></button>
-    <button data-mobile-view="console"><i class="fa-solid fa-terminal"></i><span>Console</span></button>
-  </nav>
+  <!-- REPORT PREVIEW -->
+  <div id="reportModal" class="modal hidden">
+    <div class="modal-topbar">
+      <div>
+        <strong>Lab Record Preview</strong>
+        <small>A4-ready • one report for all experiments</small>
+      </div>
+      <div class="modal-actions">
+        <button id="refreshReportBtn" class="btn">Refresh</button>
+        <button id="printPdfBtn" class="btn primary">Print / Save PDF</button>
+        <button id="closeReportBtn" class="btn">Close</button>
+      </div>
+    </div>
+    <div id="reportScroll" class="report-scroll">
+      <div id="reportPages" class="report-pages"></div>
+    </div>
+  </div>
 
-  <input type="file" id="projectImport" accept=".json" hidden>
+  <!-- Print-only report container -->
+  <div id="reportPrintArea"></div>
+
+  <input id="projectImport" type="file" accept=".json" hidden>
+
   <script src="script.js"></script>
 </body>
 </html>

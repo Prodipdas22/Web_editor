@@ -1,220 +1,535 @@
-const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
+const STORAGE_KEY = "index-editor-v2-sprint2";
 
-const defaultHTML = `<h1>Hello, World!</h1>
-<p>Welcome to Index Editor V2.</p>
-<button onclick="sayHello()">Click Me</button>`;
-
-const defaultCSS = `body {
+const defaultExperiment = () => ({
+  id: uid(),
+  number: "01",
+  title: "Create a simple HTML document",
+  objective: "To create a basic HTML document using heading, paragraph and other HTML elements.",
+  result: "The HTML document was created and displayed successfully.",
+  code: {
+    html: `<h1>Hello, World!</h1>
+<p>This is my first HTML experiment.</p>`,
+    css: `body {
   font-family: Arial, sans-serif;
   padding: 30px;
 }
-h1 { color: #2563eb; }
-button {
-  padding: 10px 16px;
-  border: 0;
-  border-radius: 6px;
-  cursor: pointer;
-}`;
-
-const defaultJS = `function sayHello() {
-  console.log("Button clicked!");
-  alert("Hello from JavaScript!");
-}`;
+h1 { color: #2563eb; }`,
+    js: `console.log("Experiment 01 loaded successfully");`
+  }
+});
 
 let state = {
-  experiments: [{
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    number: 1,
-    title: "Create a basic HTML document",
-    objective: "To create a basic HTML document using HTML elements.",
-    result: "The HTML document was created and displayed successfully.",
-    html: defaultHTML, css: defaultCSS, js: defaultJS
-  }],
-  currentId: null,
+  experiments: [defaultExperiment()],
+  activeId: null,
   language: "html",
-  theme: localStorage.getItem("index-editor-theme") || "dark"
+  theme: "dark",
+  previewMode: "desktop"
 };
 
-function current() {
-  return state.experiments.find(e => e.id === state.currentId) || state.experiments[0];
+let outputCaptures = new Map();
+
+const $ = id => document.getElementById(id);
+const qs = s => document.querySelector(s);
+const qsa = s => [...document.querySelectorAll(s)];
+
+function uid() {
+  return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 }
 
-function saveLocal(showMessage = true) {
-  localStorage.setItem("index-editor-v2", JSON.stringify(state));
-  $("#saveStatus").classList.remove("unsaved");
-  if (showMessage) toast("Saved locally");
+function activeExperiment() {
+  return state.experiments.find(e => e.id === state.activeId) || state.experiments[0];
 }
 
-function loadLocal() {
+function escapeHtml(value = "") {
+  return value.replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  $("saveStatus").textContent = "● Saved";
+  $("saveStatus").style.color = "var(--success)";
+}
+
+function loadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem("index-editor-v2"));
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (saved?.experiments?.length) state = {...state, ...saved};
   } catch {}
-  state.currentId ||= state.experiments[0].id;
+  state.activeId = state.activeId || state.experiments[0].id;
+  document.body.classList.toggle("light", state.theme === "light");
 }
 
-function toast(message) {
-  let t = $("#toast");
-  if (!t) {
-    t = document.createElement("div"); t.id = "toast";
-    Object.assign(t.style,{position:"fixed",right:"18px",bottom:"18px",zIndex:99,padding:"10px 14px",background:"var(--surface3)",color:"var(--text)",border:"1px solid var(--border)",borderRadius:"8px",boxShadow:"var(--shadow)",fontSize:"12px"});
-    document.body.appendChild(t);
-  }
-  t.textContent = message; t.style.opacity = "1";
-  clearTimeout(t._timer); t._timer = setTimeout(()=>t.style.opacity="0",1800);
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
 }
 
-function renderExperiments(filter="") {
-  const list = $("#experimentList");
-  const q = filter.toLowerCase();
+const autoSave = debounce(() => {
+  saveState();
+}, 500);
+
+function renderExperimentList() {
+  const query = $("experimentSearch").value.toLowerCase().trim();
+  const list = $("experimentList");
   list.innerHTML = "";
-  state.experiments.filter(e => `${e.number} ${e.title}`.toLowerCase().includes(q)).forEach(e => {
-    const item = document.createElement("div");
-    item.className = "experiment-item" + (e.id === state.currentId ? " active" : "");
-    item.innerHTML = `<span class="experiment-number">${String(e.number).padStart(2,"0")}</span><span class="experiment-title">${escapeHTML(e.title || "Untitled Experiment")}</span>`;
-    item.onclick = () => { state.currentId=e.id; renderAll(); closeSidebar(); };
-    list.appendChild(item);
-  });
-  $("#experimentCount").textContent = state.experiments.length;
+
+  state.experiments
+    .filter(e => `${e.number} ${e.title}`.toLowerCase().includes(query))
+    .forEach(e => {
+      const item = document.createElement("div");
+      item.className = "experiment-item" + (e.id === state.activeId ? " active" : "");
+      item.innerHTML = `<div class="num">EXP ${escapeHtml(e.number || "--")}</div>
+                        <div class="name">${escapeHtml(e.title || "Untitled experiment")}</div>`;
+      item.onclick = () => {
+        state.activeId = e.id;
+        renderAll();
+        closeMobileSidebar();
+      };
+      list.appendChild(item);
+    });
+
+  $("experimentCount").textContent = `${state.experiments.length} experiment${state.experiments.length !== 1 ? "s" : ""}`;
 }
 
-function renderDetails() {
-  const e = current();
-  $("#expNumber").value = e.number;
-  $("#expTitle").value = e.title;
-  $("#expObjective").value = e.objective;
-  $("#expResult").value = e.result;
-  $("#currentProjectName").textContent = `Experiment ${String(e.number).padStart(2,"0")}`;
-}
-
-function loadEditor() {
-  const e = current();
-  $("#codeEditor").value = e[state.language] || "";
-  $("#languageStatus").textContent = state.language === "js" ? "JavaScript" : state.language.toUpperCase();
+function renderFields() {
+  const e = activeExperiment();
+  $("expNumber").value = e.number || "";
+  $("expTitle").value = e.title || "";
+  $("expObjective").value = e.objective || "";
+  $("expResult").value = e.result || "";
+  $("codeEditor").value = e.code[state.language] || "";
+  $("languageLabel").textContent = state.language === "js" ? "JAVASCRIPT" : state.language.toUpperCase();
   updateLineNumbers();
-  updateCharCount();
+}
+
+function renderAll() {
+  renderExperimentList();
+  renderFields();
+  renderPreview();
+}
+
+function updateExperimentField(key, value) {
+  activeExperiment()[key] = value;
+  $("saveStatus").textContent = "● Unsaved";
+  $("saveStatus").style.color = "#f59e0b";
+  autoSave();
+  renderExperimentList();
+}
+
+function addExperiment() {
+  const next = state.experiments.length + 1;
+  const e = {
+    id: uid(),
+    number: String(next).padStart(2, "0"),
+    title: `Experiment ${String(next).padStart(2, "0")}`,
+    objective: "",
+    result: "",
+    code: { html: "<h1>New Experiment</h1>", css: "", js: "" }
+  };
+  state.experiments.push(e);
+  state.activeId = e.id;
+  saveState();
+  renderAll();
+}
+
+function duplicateExperiment() {
+  const src = activeExperiment();
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = uid();
+  copy.number = String(state.experiments.length + 1).padStart(2, "0");
+  copy.title = (src.title || "Experiment") + " (Copy)";
+  state.experiments.push(copy);
+  state.activeId = copy.id;
+  saveState();
+  renderAll();
+}
+
+function deleteExperiment() {
+  if (state.experiments.length === 1) {
+    alert("At least one experiment must remain.");
+    return;
+  }
+  const e = activeExperiment();
+  if (!confirm(`Delete Experiment ${e.number}?`)) return;
+  state.experiments = state.experiments.filter(x => x.id !== e.id);
+  state.activeId = state.experiments[0].id;
+  saveState();
+  renderAll();
+}
+
+function switchLanguage(lang) {
+  state.language = lang;
+  qsa(".tab").forEach(t => t.classList.toggle("active", t.dataset.lang === lang));
+  renderFields();
 }
 
 function updateLineNumbers() {
-  const n = Math.max(1, $("#codeEditor").value.split("\n").length);
-  $("#lineNumbers").innerHTML = Array.from({length:n},(_,i)=>i+1).join("<br>");
+  const lines = $("codeEditor").value.split("\n").length;
+  $("lineNumbers").textContent = Array.from({length: lines}, (_, i) => i + 1).join("\n");
+  $("lineNumbers").scrollTop = $("codeEditor").scrollTop;
 }
 
-function updateCharCount() {
-  $("#charStatus").textContent = `${$("#codeEditor").value.length} chars`;
+function buildDocument(e) {
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${e.code.css || ""}</style>
+</head>
+<body>
+${e.code.html || ""}
+<script>
+window.addEventListener("error", function(ev) {
+  parent.postMessage({type:"console", level:"error", message: ev.message + " (line " + ev.lineno + ")"}, "*");
+});
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+function send(level,args){
+  parent.postMessage({type:"console",level,message:args.map(x=>{
+    try{return typeof x==="object"?JSON.stringify(x):String(x)}catch{return String(x)}
+  }).join(" ")}, "*");
+}
+console.log = (...a)=>{send("log",a); originalLog(...a)};
+console.warn = (...a)=>{send("warn",a); originalWarn(...a)};
+console.error = (...a)=>{send("error",a); originalError(...a)};
+try {
+${e.code.js || ""}
+} catch(err) {
+  send("error",[err.stack || err.message]);
+}
+<\/script>
+</body>
+</html>`;
 }
 
-function syncEditor() {
-  current()[state.language] = $("#codeEditor").value;
-  $("#saveStatus").classList.add("unsaved");
-  updateLineNumbers(); updateCharCount();
-  clearTimeout(syncEditor.timer);
-  syncEditor.timer = setTimeout(()=>{ saveLocal(false); runCode(); },350);
+function clearConsole() {
+  $("consoleOutput").innerHTML = `<div class="console-line muted">Console cleared.</div>`;
+  $("consoleStatus").textContent = "Ready";
+}
+
+function addConsole(level, message) {
+  const line = document.createElement("div");
+  line.className = `console-line ${level}`;
+  line.textContent = `[${level}] ${message}`;
+  $("consoleOutput").appendChild(line);
+  $("consoleOutput").scrollTop = $("consoleOutput").scrollHeight;
+  $("consoleStatus").textContent = level === "error" ? "Runtime error" : "Output received";
 }
 
 function runCode() {
-  const e = current();
+  const e = activeExperiment();
   clearConsole();
-  const html = e.html || "";
-  const css = e.css || "";
-  const js = e.js || "";
-  const bridge = `<script>
-    (() => {
-      const send=(type,args)=>parent.postMessage({source:"index-editor",type,message:args.map(x=>typeof x==="object"?JSON.stringify(x):String(x)).join(" ")}, "*");
-      ["log","info","warn","error"].forEach(k=>{const o=console[k]; console[k]=(...a)=>{send(k,a);o.apply(console,a)}});
-      window.onerror=(m,u,l)=>send("error",[m+" (line "+l+")"]);
-      window.addEventListener("unhandledrejection",e=>send("error",[e.reason]));
-    })();
-  <\/script>`;
-  const doc = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>${html}<script>${bridge}${js.replace(/<\/script/gi,"<\\/script")}<\/script></body></html>`;
-  $("#previewFrame").srcdoc = doc;
+  addConsole("muted", `Running Experiment ${e.number}...`);
+  $("previewFrame").srcdoc = buildDocument(e);
+  setTimeout(() => addConsole("log", "Preview rendered."), 250);
 }
 
-window.addEventListener("message", e => {
-  if (e.data?.source !== "index-editor") return;
-  addConsole(e.data.type, e.data.message);
-});
-
-function addConsole(type, message) {
-  const box = $("#consoleOutput");
-  $(".console-empty")?.remove();
-  const line = document.createElement("div");
-  line.className = `console-line ${type === "error" ? "error" : type === "warn" ? "warn" : ""}`;
-  line.textContent = `> ${message}`;
-  box.appendChild(line); box.scrollTop=box.scrollHeight;
-}
-function clearConsole(){ $("#consoleOutput").innerHTML='<div class="console-empty">Run your code to see console messages here.</div>'; }
-
-function addExperiment() {
-  const next = state.experiments.reduce((m,e)=>Math.max(m,Number(e.number)||0),0)+1;
-  const e = {id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),number:next,title:"New Experiment",objective:"",result:"",html:"<h1>New Experiment</h1>",css:"body { font-family: Arial; padding: 20px; }",js:"console.log('Experiment loaded');"};
-  state.experiments.push(e); state.currentId=e.id; saveLocal(false); renderAll(); toast("Experiment added");
-}
-function duplicateExperiment() {
-  const e=current(), copy={...e,id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),number:state.experiments.length+1,title:e.title+" (Copy)"};
-  state.experiments.push(copy);state.currentId=copy.id;saveLocal(false);renderAll();
-}
-function deleteExperiment() {
-  if(state.experiments.length===1) return toast("Keep at least one experiment");
-  if(!confirm("Delete this experiment?")) return;
-  const i=state.experiments.findIndex(e=>e.id===state.currentId);
-  state.experiments.splice(i,1);state.currentId=state.experiments[Math.max(0,i-1)].id;saveLocal(false);renderAll();toast("Experiment deleted");
+function renderPreview() {
+  const e = activeExperiment();
+  $("previewFrame").srcdoc = buildDocument(e);
+  $("previewStage").classList.toggle("mobile-preview", state.previewMode === "mobile");
+  $("previewDesktopBtn").classList.toggle("active", state.previewMode === "desktop");
+  $("previewMobileBtn").classList.toggle("active", state.previewMode === "mobile");
 }
 
-function downloadHTML() {
-  const e=current();
-  const doc=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHTML(e.title)}</title><style>${e.css}</style></head><body>${e.html}<script>${e.js.replace(/<\/script/gi,"<\\/script")}<\/script></body></html>`;
-  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([doc],{type:"text/html"}));a.download=`experiment-${e.number}.html`;a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-}
-function copyCode(){ navigator.clipboard?.writeText($("#codeEditor").value).then(()=>toast("Code copied")); }
-
-function toggleTheme(){
-  state.theme=state.theme==="dark"?"light":"dark";
-  document.documentElement.dataset.theme=state.theme;
-  localStorage.setItem("index-editor-theme",state.theme);
-  $("#themeBtn i").className=state.theme==="dark"?"fa-solid fa-sun":"fa-solid fa-moon";
+function updateCode(value) {
+  activeExperiment().code[state.language] = value;
+  $("saveStatus").textContent = "● Unsaved";
+  $("saveStatus").style.color = "#f59e0b";
+  updateLineNumbers();
+  autoSave();
+  renderExperimentList();
+  if (state.language === "html" || state.language === "css" || state.language === "js") {
+    debouncePreview();
+  }
 }
 
-function escapeHTML(s=""){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+const debouncePreview = debounce(renderPreview, 450);
 
-function renderAll(){renderExperiments($("#experimentSearch").value);renderDetails();loadEditor();runCode();}
+function downloadCurrentHTML() {
+  const e = activeExperiment();
+  const blob = new Blob([buildDocument(e)], {type:"text/html"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `experiment-${e.number || "01"}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
-function closeSidebar(){ $("#sidebar").classList.remove("open"); }
+async function copyCurrentCode() {
+  try {
+    await navigator.clipboard.writeText($("codeEditor").value);
+    $("copyCodeBtn").textContent = "Copied";
+    setTimeout(() => $("copyCodeBtn").textContent = "Copy", 1000);
+  } catch {
+    alert("Clipboard access is unavailable. Select and copy the code manually.");
+  }
+}
 
-function setup(){
-  loadLocal(); state.currentId ||= state.experiments[0].id;
-  document.documentElement.dataset.theme=state.theme;
-  $("#themeBtn i").className=state.theme==="dark"?"fa-solid fa-sun":"fa-solid fa-moon";
-  renderAll();
+function formatCode() {
+  const area = $("codeEditor");
+  let value = area.value;
+  if (state.language === "html") {
+    value = value.replace(/>\s*</g, ">\n<").replace(/\n{3,}/g, "\n\n");
+  } else if (state.language === "css") {
+    value = value.replace(/\s*{\s*/g, " {\n  ").replace(/;\s*/g, ";\n  ").replace(/\s*}\s*/g, "\n}\n").replace(/\n\s*\n/g, "\n");
+  } else {
+    value = value.replace(/;\s*/g, ";\n").replace(/{\s*/g, "{\n  ").replace(/}\s*/g, "\n}\n");
+  }
+  area.value = value.trim();
+  updateCode(area.value);
+}
 
-  $$(".tab").forEach(tab=>tab.onclick=()=>{ $$(".tab").forEach(x=>x.classList.remove("active"));tab.classList.add("active");state.language=tab.dataset.lang;loadEditor();});
-  $("#codeEditor").addEventListener("input",syncEditor);
-  $("#codeEditor").addEventListener("scroll",()=>$("#lineNumbers").scrollTop=$("#codeEditor").scrollTop);
-  $("#runBtn").onclick=runCode; $("#refreshBtn").onclick=runCode; $("#copyBtn").onclick=copyCode;
-  $("#clearCodeBtn").onclick=()=>{$("#codeEditor").value="";syncEditor()};
-  $("#clearConsoleBtn").onclick=clearConsole;
-  $("#saveBtn").onclick=()=>saveLocal(true); $("#downloadBtn").onclick=downloadHTML; $("#themeBtn").onclick=toggleTheme;
-  $("#addExperimentBtn").onclick=addExperiment; $("#duplicateBtn").onclick=duplicateExperiment; $("#deleteBtn").onclick=deleteExperiment;
-  $("#experimentSearch").oninput=e=>renderExperiments(e.target.value);
-  ["expNumber","expTitle","expObjective","expResult"].forEach(id=>$("#"+id).addEventListener("input",()=>{
-    const e=current(); e.number=Number($("#expNumber").value)||1;e.title=$("#expTitle").value;e.objective=$("#expObjective").value;e.result=$("#expResult").value;
-    renderExperiments($("#experimentSearch").value);$("#saveStatus").classList.add("unsaved");saveLocal(false);
-  }));
-  $("#fullscreenBtn").onclick=()=>$("#browserWindow").requestFullscreen?.();
-  $$("[data-preview]").forEach(b=>b.onclick=()=>{ $$(".preview-tools [data-preview]").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("#browserWindow").classList.toggle("mobile",b.dataset.preview==="mobile");});
-  $("#menuBtn").onclick=()=>$("#sidebar").classList.toggle("open");
-  $$("[data-mobile-view]").forEach(b=>b.onclick=()=>{
-    $$("[data-mobile-view]").forEach(x=>x.classList.remove("active"));b.classList.add("active");
-    const v=b.dataset.mobileView, wb=$(".workbench");
-    $("#sidebar").classList.toggle("open",v==="files");
-    wb.classList.toggle("show-preview",v==="preview");
-    if(v==="console") $("#consoleOutput").scrollIntoView({block:"nearest"});
+async function captureExperimentOutput(e) {
+  return new Promise(resolve => {
+    if (typeof html2canvas === "undefined") {
+      resolve(null);
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-modals allow-popups allow-same-origin");
+    iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:850px;height:520px;border:0;background:white;";
+    document.body.appendChild(iframe);
+
+    let finished = false;
+    const finish = value => {
+      if (finished) return;
+      finished = true;
+      iframe.remove();
+      resolve(value);
+    };
+
+    iframe.onload = async () => {
+      setTimeout(async () => {
+        try {
+          const doc = iframe.contentDocument;
+          if (!doc?.body) return finish(null);
+          const canvas = await html2canvas(doc.body, {
+            backgroundColor: "#ffffff",
+            scale: 1,
+            useCORS: true,
+            logging: false,
+            windowWidth: 850,
+            windowHeight: 520
+          });
+          finish(canvas.toDataURL("image/png"));
+        } catch {
+          finish(null);
+        }
+      }, 350);
+    };
+
+    iframe.srcdoc = buildDocument(e);
+    setTimeout(() => finish(null), 5000);
   });
-  window.addEventListener("keydown",e=>{
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveLocal(true)}
-    if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();runCode()}
+}
+
+function codeWindow(label, code) {
+  return `<div class="code-window">
+    <div class="code-window-head"><i class="code-dot"></i><i class="code-dot"></i><i class="code-dot"></i><span class="code-label">${label}</span></div>
+    <pre class="code-block">${escapeHtml(code || "(empty)")}</pre>
+  </div>`;
+}
+
+function reportPage(e, capture, index, total) {
+  const output = capture
+    ? `<img class="output-image" src="${capture}" alt="Experiment output">`
+    : `<div class="output-fallback">Output screenshot could not be captured in this browser.<br>Run the experiment in the live preview above and use Print / Save PDF again if needed.</div>`;
+
+  return `<article class="a4-page">
+    <header class="report-header">
+      <div class="report-kicker">College Laboratory Record</div>
+      <div class="report-title">Experiment ${escapeHtml(e.number || "--")}: ${escapeHtml(e.title || "Untitled Experiment")}</div>
+      <div class="report-expno">Experiment No. ${escapeHtml(e.number || "--")}</div>
+    </header>
+
+    <section class="report-section">
+      <h3>1. Objective</h3>
+      <div class="objective-text">${escapeHtml(e.objective || "Objective not provided.")}</div>
+    </section>
+
+    <section class="report-section">
+      <h3>2. Source Code</h3>
+      ${codeWindow("HTML", e.code.html)}
+      ${codeWindow("CSS", e.code.css)}
+      ${codeWindow("JAVASCRIPT", e.code.js)}
+    </section>
+
+    <section class="report-section">
+      <h3>3. Output</h3>
+      <div class="output-box">
+        <div class="output-head">Rendered browser output</div>
+        ${output}
+      </div>
+    </section>
+
+    <section class="report-section">
+      <h3>4. Result</h3>
+      <div class="result-box"><div class="result-text">${escapeHtml(e.result || "Result not provided.")}</div></div>
+    </section>
+
+    <footer class="report-footer">
+      <span>Index Editor V2</span><span>Experiment ${index + 1} of ${total}</span>
+    </footer>
+  </article>`;
+}
+
+async function buildReport() {
+  $("reportPages").innerHTML = `<div class="a4-page" style="display:grid;place-items:center;font-size:13px">Preparing report…<br><small>Capturing experiment outputs</small></div>`;
+  outputCaptures.clear();
+
+  const pages = [];
+  for (let i = 0; i < state.experiments.length; i++) {
+    const e = state.experiments[i];
+    const capture = await captureExperimentOutput(e);
+    outputCaptures.set(e.id, capture);
+    pages.push(reportPage(e, capture, i, state.experiments.length));
+  }
+
+  $("reportPages").innerHTML = pages.join("");
+}
+
+function openReport() {
+  saveState();
+  $("reportModal").classList.remove("hidden");
+  buildReport();
+}
+
+function closeReport() {
+  $("reportModal").classList.add("hidden");
+}
+
+function createPrintReport() {
+  const pages = state.experiments.map((e, i) => {
+    const capture = outputCaptures.get(e.id);
+    const output = capture
+      ? `<img class="output-image" src="${capture}" alt="Experiment output">`
+      : `<div class="output-fallback">Output screenshot unavailable.</div>`;
+    return `<article class="print-report-page">
+      <header class="report-header">
+        <div class="report-kicker">College Laboratory Record</div>
+        <div class="report-title">Experiment ${escapeHtml(e.number || "--")}: ${escapeHtml(e.title || "Untitled Experiment")}</div>
+        <div class="report-expno">Experiment No. ${escapeHtml(e.number || "--")}</div>
+      </header>
+      <section class="report-section"><h3>1. Objective</h3><div class="objective-text">${escapeHtml(e.objective || "Objective not provided.")}</div></section>
+      <section class="report-section"><h3>2. Source Code</h3>
+        ${codeWindow("HTML", e.code.html)}
+        ${codeWindow("CSS", e.code.css)}
+        ${codeWindow("JAVASCRIPT", e.code.js)}
+      </section>
+      <section class="report-section"><h3>3. Output</h3><div class="output-box"><div class="output-head">Rendered browser output</div>${output}</div></section>
+      <section class="report-section"><h3>4. Result</h3><div class="result-box"><div class="result-text">${escapeHtml(e.result || "Result not provided.")}</div></div></section>
+      <footer class="report-footer"><span>Index Editor V2</span><span>Experiment ${i+1} of ${state.experiments.length}</span></footer>
+    </article>`;
+  }).join("");
+  $("reportPrintArea").innerHTML = pages;
+}
+
+function printReport() {
+  createPrintReport();
+  window.print();
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  document.body.classList.toggle("light", state.theme === "light");
+  $("themeBtn").textContent = state.theme === "dark" ? "☾" : "☀";
+  saveState();
+}
+
+function fullscreenPreview() {
+  const frame = $("previewFrame");
+  if (frame.requestFullscreen) frame.requestFullscreen();
+}
+
+function mobileNav(action) {
+  qsa(".mobile-nav button").forEach(b => b.classList.toggle("active", b.dataset.mobile === action));
+  if (action === "files") {
+    $("sidebar").classList.add("open");
+  } else {
+    $("sidebar").classList.remove("open");
+  }
+  const workbench = qs(".workbench");
+  const editor = qs(".editor-panel");
+  const preview = qs(".preview-panel");
+  const consolePanel = qs(".console-panel");
+  if (window.innerWidth <= 900) {
+    editor.style.display = action === "code" ? "" : "none";
+    preview.style.display = action === "preview" ? "" : "none";
+    consolePanel.style.display = action === "console" ? "" : "none";
+    if (action === "files") {
+      editor.style.display = "";
+      preview.style.display = "none";
+      consolePanel.style.display = "none";
+    }
+  }
+}
+
+function closeMobileSidebar() {
+  $("sidebar").classList.remove("open");
+}
+
+function bindEvents() {
+  $("addExperimentBtn").onclick = addExperiment;
+  $("duplicateBtn").onclick = duplicateExperiment;
+  $("deleteBtn").onclick = deleteExperiment;
+  $("saveBtn").onclick = saveState;
+  $("downloadBtn").onclick = downloadCurrentHTML;
+  $("pdfBtn").onclick = openReport;
+  $("closeReportBtn").onclick = closeReport;
+  $("refreshReportBtn").onclick = buildReport;
+  $("printPdfBtn").onclick = printReport;
+  $("themeBtn").onclick = toggleTheme;
+  $("runBtn").onclick = runCode;
+  $("refreshPreviewBtn").onclick = renderPreview;
+  $("fullscreenBtn").onclick = fullscreenPreview;
+  $("copyCodeBtn").onclick = copyCurrentCode;
+  $("formatBtn").onclick = formatCode;
+  $("clearConsoleBtn").onclick = clearConsole;
+  $("previewDesktopBtn").onclick = () => {state.previewMode="desktop";renderPreview()};
+  $("previewMobileBtn").onclick = () => {state.previewMode="mobile";renderPreview()};
+  $("experimentSearch").oninput = renderExperimentList;
+
+  $("codeEditor").oninput = e => updateCode(e.target.value);
+  $("codeEditor").onscroll = updateLineNumbers;
+  $("codeEditor").onkeydown = e => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const start = e.target.selectionStart, end = e.target.selectionEnd;
+      e.target.setRangeText("  ", start, end, "end");
+      updateCode(e.target.value);
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault(); runCode();
+    }
+  };
+
+  $("expNumber").oninput = e => updateExperimentField("number", e.target.value);
+  $("expTitle").oninput = e => updateExperimentField("title", e.target.value);
+  $("expObjective").oninput = e => updateExperimentField("objective", e.target.value);
+  $("expResult").oninput = e => updateExperimentField("result", e.target.value);
+
+  qsa(".tab").forEach(tab => tab.onclick = () => switchLanguage(tab.dataset.lang));
+  qsa(".mobile-nav button").forEach(b => b.onclick = () => mobileNav(b.dataset.mobile));
+
+  window.addEventListener("message", event => {
+    if (event.data?.type === "console") addConsole(event.data.level || "log", event.data.message || "");
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900) {
+      qsa(".editor-panel,.preview-panel,.console-panel").forEach(el => el.style.display = "");
+    }
   });
 }
-document.addEventListener("DOMContentLoaded",setup);
+
+loadState();
+bindEvents();
+renderAll();
+$("themeBtn").textContent = state.theme === "dark" ? "☾" : "☀";
