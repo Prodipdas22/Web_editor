@@ -337,46 +337,40 @@ function codeWindow(label, code) {
   </div>`;
 }
 
-function reportPage(e, capture, index, total) {
+function reportPage(e, capture) {
   const output = capture
     ? `<img class="output-image" src="${capture}" alt="Experiment output">`
-    : `<div class="output-fallback">Output screenshot could not be captured in this browser.<br>Run the experiment in the live preview above and use Print / Save PDF again if needed.</div>`;
+    : `<div class="output-fallback">Output screenshot could not be captured.</div>`;
+
+  const codeHTML = e.code.html ? codeWindow("HTML", e.code.html) : "";
+  const codeCSS = e.code.css ? codeWindow("CSS", e.code.css) : "";
+  const codeJS = e.code.js ? codeWindow("JAVASCRIPT", e.code.js) : "";
 
   return `<article class="a4-page">
-    <header class="report-header">
-      <div class="report-kicker">College Laboratory Record</div>
-      <div class="report-title">Experiment ${escapeHtml(e.number || "--")}: ${escapeHtml(e.title || "Untitled Experiment")}</div>
-      <div class="report-expno">Experiment No. ${escapeHtml(e.number || "--")}</div>
-    </header>
+    <div class="a4-border">
+      <header class="report-header">
+        <div class="report-title">Experiment ${escapeHtml(e.number || "--")}: ${escapeHtml(e.title || "Untitled Experiment")}</div>
+      </header>
 
-    <section class="report-section">
-      <h3>1. Objective</h3>
-      <div class="objective-text">${escapeHtml(e.objective || "Objective not provided.")}</div>
-    </section>
+      <section class="report-section">
+        <h3>Objective</h3>
+        <div class="objective-text">${escapeHtml(e.objective || "Objective not provided.")}</div>
+      </section>
 
-    <section class="report-section">
-      <h3>2. Source Code</h3>
-      ${codeWindow("HTML", e.code.html)}
-      ${codeWindow("CSS", e.code.css)}
-      ${codeWindow("JAVASCRIPT", e.code.js)}
-    </section>
+      ${codeHTML || codeCSS || codeJS ? `<section class="report-section">
+        <h3>Source Code</h3>
+        ${codeHTML}
+        ${codeCSS}
+        ${codeJS}
+      </section>` : ""}
 
-    <section class="report-section">
-      <h3>3. Output</h3>
-      <div class="output-box">
-        <div class="output-head">Rendered browser output</div>
-        ${output}
-      </div>
-    </section>
-
-    <section class="report-section">
-      <h3>4. Result</h3>
-      <div class="result-box"><div class="result-text">${escapeHtml(e.result || "Result not provided.")}</div></div>
-    </section>
-
-    <footer class="report-footer">
-      <span>Index Editor V2</span><span>Experiment ${index + 1} of ${total}</span>
-    </footer>
+      <section class="report-section">
+        <h3>Output</h3>
+        <div class="output-box">
+          ${output}
+        </div>
+      </section>
+    </div>
   </article>`;
 }
 
@@ -389,7 +383,7 @@ async function buildReport() {
     const e = state.experiments[i];
     const capture = await captureExperimentOutput(e);
     outputCaptures.set(e.id, capture);
-    pages.push(reportPage(e, capture, i, state.experiments.length));
+    pages.push(reportPage(e, capture));
   }
 
   $("reportPages").innerHTML = pages.join("");
@@ -406,26 +400,38 @@ function closeReport() {
 }
 
 function createPrintReport() {
-  const pages = state.experiments.map((e, i) => {
+  const pages = state.experiments.map((e) => {
     const capture = outputCaptures.get(e.id);
     const output = capture
       ? `<img class="output-image" src="${capture}" alt="Experiment output">`
       : `<div class="output-fallback">Output screenshot unavailable.</div>`;
+
+    const codeHTML = e.code.html ? codeWindow("HTML", e.code.html) : "";
+    const codeCSS = e.code.css ? codeWindow("CSS", e.code.css) : "";
+    const codeJS = e.code.js ? codeWindow("JAVASCRIPT", e.code.js) : "";
+
     return `<article class="print-report-page">
-      <header class="report-header">
-        <div class="report-kicker">College Laboratory Record</div>
-        <div class="report-title">Experiment ${escapeHtml(e.number || "--")}: ${escapeHtml(e.title || "Untitled Experiment")}</div>
-        <div class="report-expno">Experiment No. ${escapeHtml(e.number || "--")}</div>
-      </header>
-      <section class="report-section"><h3>1. Objective</h3><div class="objective-text">${escapeHtml(e.objective || "Objective not provided.")}</div></section>
-      <section class="report-section"><h3>2. Source Code</h3>
-        ${codeWindow("HTML", e.code.html)}
-        ${codeWindow("CSS", e.code.css)}
-        ${codeWindow("JAVASCRIPT", e.code.js)}
-      </section>
-      <section class="report-section"><h3>3. Output</h3><div class="output-box"><div class="output-head">Rendered browser output</div>${output}</div></section>
-      <section class="report-section"><h3>4. Result</h3><div class="result-box"><div class="result-text">${escapeHtml(e.result || "Result not provided.")}</div></div></section>
-      <footer class="report-footer"><span>Index Editor V2</span><span>Experiment ${i+1} of ${state.experiments.length}</span></footer>
+      <div class="a4-border">
+        <header class="report-header">
+          <div class="report-title">Experiment ${escapeHtml(e.number || "--")}: ${escapeHtml(e.title || "Untitled Experiment")}</div>
+        </header>
+        <section class="report-section">
+          <h3>Objective</h3>
+          <div class="objective-text">${escapeHtml(e.objective || "Objective not provided.")}</div>
+        </section>
+        ${codeHTML || codeCSS || codeJS ? `<section class="report-section">
+          <h3>Source Code</h3>
+          ${codeHTML}
+          ${codeCSS}
+          ${codeJS}
+        </section>` : ""}
+        <section class="report-section">
+          <h3>Output</h3>
+          <div class="output-box">
+            ${output}
+          </div>
+        </section>
+      </div>
     </article>`;
   }).join("");
   $("reportPrintArea").innerHTML = pages;
